@@ -9,6 +9,7 @@ import rstr
 import pyarrow as pa
 import pyarrow.parquet as pq
 import xlsxwriter
+from decimal import Decimal
 
 def parse_args():
     ap = argparse.ArgumentParser()
@@ -43,7 +44,8 @@ def main():
         'carrier': pa.array(['AUSPOST']*10000, type=pa.string()),
         'shipped_at': pa.array([datetime(2024,1,1)+timedelta(days=i%90) for i in range(10000)], type=pa.timestamp('us')),
         'delivered_at': pa.array([datetime(2024,1,2)+timedelta(days=i%90) for i in range(10000)], type=pa.timestamp('us')),
-        'ship_cost': pa.array([1995]*10000, type=pa.int64()).cast(pa.decimal128(12,2)),
+        # 'ship_cost': pa.array([1995]*10000, type=pa.int64()).cast(pa.decimal128(12,2))
+        'ship_cost': pa.array([Decimal("1995.00")]*10000, type=pa.decimal128(12, 2)),
     })
     pq.write_table(tbl, out/'shipments.parquet', compression='snappy')
 
