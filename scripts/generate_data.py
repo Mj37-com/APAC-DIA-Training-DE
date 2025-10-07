@@ -1,5 +1,6 @@
 # Generate synthetic raw data locally with controlled edge cases.
 # Usage: python scripts/generate_data.py --seed 42 --out data_raw
+# Usage: completed installation of all packages needed
 import argparse, os, pathlib, random
 from datetime import datetime, timedelta, date
 import numpy as np
