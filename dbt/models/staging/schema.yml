@@ -1,0 +1,68 @@
+version: 2
+
+models:
+  - name: stg_customers
+    description: "Staging table for customers"
+    columns:
+      - name: customer_id
+        description: "Customer ID"
+        tests:
+          - not_null
+          - unique
+        data_type: bigint
+      - name: natural_key
+        description: "Natural key"
+        data_type: text
+      - name: first_name
+        description: "First name"
+        data_type: text
+      - name: last_name
+        description: "Last name"
+        data_type: text
+      - name: email
+        description: "Email address"
+        data_type: text
+      - name: phone
+        description: "Phone number"
+        data_type: text
+      - name: address_line1
+        description: "Address line 1"
+        data_type: text
+      - name: address_line2
+        description: "Address line 2"
+        data_type: text
+      - name: city
+        description: "City"
+        data_type: text
+      - name: state_region
+        description: "State / region"
+        data_type: text
+      - name: postcode
+        description: "Postal code"
+        data_type: text
+      - name: country_code
+        description: "Country code"
+        data_type: text
+      - name: latitude
+        description: "Latitude"
+        data_type: double
+      - name: longitude
+        description: "Longitude"
+        data_type: double
+      - name: birth_date
+        description: "Birth date"
+        data_type: date
+      - name: join_ts_utc
+        description: "Join timestamp in UTC"
+        data_type: timestamp
+      - name: is_vip
+        description: "VIP flag"
+        data_type: boolean
+      - name: gdpr_consent
+        description: "GDPR consent flag"
+        data_type: boolean
+tests:
+  - not_null:
+      column_name: customer_id
+  - unique:
+      column_name: customer_id

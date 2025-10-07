@@ -1,10 +1,7 @@
-{{ config(
-    materialized='table') }}
-
+{{ config(materialized='table', contract={'enforced': true}) }}
 
 with src as (
-  select *
-    from {{ ref('_sources') }}
+  select * from {{ ref('_sources') }}
 ),
 typed as (
   select
