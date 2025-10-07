@@ -1,6 +1,7 @@
 # Ingest raw files into Bronze (Parquet + Delta), with schema validation, partitioning,
 # rejects, and manifest tracking in DuckDB.
 # Usage: python scripts/load_to_bronze.py --raw data_raw --lake lake --manifest duckdb/warehouse.duckdb
+# bronze completed loaded
 import argparse, pathlib, os, hashlib, json, datetime as dt
 import duckdb
 import pyarrow as pa
