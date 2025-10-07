@@ -15,10 +15,12 @@ clean-targets: ['target']
 
 models:
   local_de_assessment:
-    +materialized: view
     staging:
+      +materialized: view
       +schema: stg
     silver:
+      +materialized: table
       +schema: silver
     gold:
+      +materialized: table
       +schema: gold

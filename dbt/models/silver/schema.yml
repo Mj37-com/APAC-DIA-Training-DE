@@ -1,0 +1,20 @@
+# models/silver/schema.yml
+version: 2
+
+models:
+  - name: fct_customers
+    description: "Fact table for customers with incremental loading"
+    columns:
+      - name: customer_id
+        tests:
+          - not_null
+          - unique
+      - name: first_name
+        tests:
+          - not_null
+      - name: last_name
+        tests:
+          - not_null
+      - name: is_vip
+        tests:
+          - vip_flag
