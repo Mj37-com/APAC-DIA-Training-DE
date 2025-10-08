@@ -2,11 +2,11 @@
 
 select
     product_id,
-    product_name,
+    sha256(concat(name, sku)) as masked_product_key,
     category,
-    price,
-    effective_date,
-    end_date,
-    is_current
-from {{ ref('products_snapshot') }}
-where is_current = true
+    subcategory,
+    case 
+        when is_discontinued = true then 'Discontinued'
+        else 'Active'
+    end as product_status
+from {{ ref('fct_products') }}
