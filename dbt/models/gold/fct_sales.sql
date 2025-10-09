@@ -1,3 +1,4 @@
+-- Run dbt run --select fct_sales --profiles-dir ./profiles
 {{ config(materialized='view') }}
 
 with base as (
