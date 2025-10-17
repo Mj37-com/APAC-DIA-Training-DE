@@ -1,4 +1,4 @@
-{% set lake_root = '../data_raw' %}
+{% set lake_root = '../scripts/data_raw' %}
 {% set source_table = var('source_table', 'products') %}
 
 {{ config(
