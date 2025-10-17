@@ -140,4 +140,5 @@ def main():
 if __name__ == '__main__':
     main()
 
-#how to run in bash PYTHONPATH=. python scripts/load_to_bronze.py --raw data_raw --lake lake --manifest duckdb/warehouse.duckdb
+#how to run in bash HQ+maustria@PHNBFN81SB4 MINGW64 ~/APAC-DIA-Training-DE (main)
+#$ PYTHONPATH=. python scripts/load_to_bronze.py --raw scripts/data_raw --lake lake --manifest duckdb/warehouse.duckdb
