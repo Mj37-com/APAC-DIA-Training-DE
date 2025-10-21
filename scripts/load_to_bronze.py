@@ -77,3 +77,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     load_to_bronze(args.raw, args.lake, args.manifest)
+
+# reset and reload 
+# rm duckdb/warehouse.duckdb
+# PYTHONPATH=. python scripts/load_to_bronze.py --raw scripts/data_raw --lake lake --manifest duckdb/warehouse.duckdb
