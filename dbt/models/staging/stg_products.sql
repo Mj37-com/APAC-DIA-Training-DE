@@ -1,5 +1,5 @@
 {% set lake_root = '../scripts/data_raw' %}
-{% set source_table = var('source_table', 'products') %}
+{% set source_table = var('source_table', 'bronze_products') %}
 
 {{ config(
     materialized = 'table',
