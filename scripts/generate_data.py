@@ -1,91 +1,151 @@
-# Generate synthetic raw data locally with controlled edge cases.
-# Usage: python scripts/generate_data.py --seed 42 --out data_raw
-
-import argparse, os, pathlib, random
-from datetime import datetime, timedelta, date
+import os
+import argparse
+import pandas as pd
 import numpy as np
-from faker import Faker
-from mimesis import Person, Address
-import rstr
-import pyarrow as pa
-import pyarrow.csv as pv
-import pyarrow.parquet as pq
-from decimal import Decimal
+import json
+from datetime import datetime, timedelta
+from pathlib import Path
 
-def parse_args():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--seed', type=int, default=42)
-    ap.add_argument('--out', type=str, default='data_raw')
-    return ap.parse_args()
+def ensure_dir(path):
+    os.makedirs(path, exist_ok=True)
 
-def ensure_dir(p): pathlib.Path(p).mkdir(parents=True, exist_ok=True)
+def generate_customers(n=50, seed=42):
+    np.random.seed(seed)
+    return pd.DataFrame({
+        "customer_id": range(1, n + 1),
+        "customer_name": [f"Customer_{i}" for i in range(1, n + 1)],
+        "region": np.random.choice(["North", "South", "East", "West"], n),
+        "join_date": pd.date_range("2023-01-01", periods=n).strftime("%Y-%m-%d")
+    })
+
+def generate_products(n=20, seed=42):
+    np.random.seed(seed)
+    return pd.DataFrame({
+        "product_id": range(1, n + 1),
+        "product_name": [f"Product_{i}" for i in range(1, n + 1)],
+        "category": np.random.choice(["Electronics", "Clothing", "Food", "Home"], n),
+        "price": np.random.randint(100, 1000, n)
+    })
+
+def generate_stores(n=10):
+    return pd.DataFrame({
+        "store_id": range(1, n + 1),
+        "store_name": [f"Store_{i}" for i in range(1, n + 1)],
+        "city": np.random.choice(["Manila", "Cebu", "Davao", "Baguio"], n)
+    })
+
+def generate_suppliers(n=10):
+    return pd.DataFrame({
+        "supplier_id": range(1, n + 1),
+        "supplier_name": [f"Supplier_{i}" for i in range(1, n + 1)],
+        "country": np.random.choice(["PH", "SG", "US", "JP"], n)
+    })
+
+def generate_orders(customers, stores, seed=42):
+    np.random.seed(seed)
+    n = 200
+    order_ids = range(1, n + 1)
+    header = pd.DataFrame({
+        "order_id": order_ids,
+        "customer_id": np.random.choice(customers["customer_id"], n),
+        "store_id": np.random.choice(stores["store_id"], n),
+        "order_date": pd.date_range("2024-01-01", periods=n).strftime("%Y-%m-%d"),
+        "total_amount": np.random.uniform(500, 10000, n).round(2)
+    })
+    lines = pd.DataFrame({
+        "order_id": np.repeat(order_ids, 2),
+        "product_id": np.random.randint(1, 21, n * 2),
+        "quantity": np.random.randint(1, 10, n * 2),
+        "unit_price": np.random.randint(100, 1000, n * 2)
+    })
+    return header, lines
+
+def generate_shipments(orders):
+    n = len(orders)
+    return pd.DataFrame({
+        "shipment_id": range(1, n + 1),
+        "order_id": orders["order_id"],
+        "ship_date": pd.to_datetime(orders["order_date"]) + pd.to_timedelta(np.random.randint(1, 7, n), "D"),
+        "status": np.random.choice(["In Transit", "Delivered", "Returned"], n)
+    })
+
+def generate_returns(orders):
+    return pd.DataFrame({
+        "return_id": range(1, len(orders)//4 + 1),
+        "order_id": np.random.choice(orders["order_id"], len(orders)//4),
+        "return_date": pd.to_datetime("2024-07-01") + pd.to_timedelta(np.random.randint(1, 20, len(orders)//4), "D"),
+        "reason": np.random.choice(["Defective", "Wrong Item", "Late Delivery"], len(orders)//4)
+    })
+
+def generate_exchange_rates():
+    dates = pd.date_range("2024-01-01", periods=365)
+    return pd.DataFrame({
+        "date": dates,
+        "USD_PHP": 55 + np.random.normal(0, 0.5, len(dates)),
+        "USD_SGD": 1.34 + np.random.normal(0, 0.01, len(dates))
+    })
+
+def generate_sensors():
+    times = pd.date_range("2024-01-01", periods=100, freq="H")
+    return pd.DataFrame({
+        "sensor_id": np.random.randint(1000, 1100, len(times)),
+        "timestamp": times,
+        "temperature": np.random.uniform(20, 35, len(times)),
+        "humidity": np.random.uniform(40, 80, len(times))
+    })
+
+def generate_events():
+    events = []
+    event_types = ["click", "view", "purchase", "add_to_cart"]
+    for i in range(100):
+        events.append({
+            "event_id": i + 1,
+            "timestamp": (datetime.now() - timedelta(minutes=np.random.randint(0, 10000))).isoformat(),
+            "event_type": np.random.choice(event_types),
+            "customer_id": np.random.randint(1, 51)
+        })
+    return events
 
 def main():
-    args = parse_args()
-    random.seed(args.seed); np.random.seed(args.seed)
-    out = pathlib.Path(args.out); ensure_dir(out)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--out", default="scripts/data_raw")
+    parser.add_argument("--seed", type=int, default=42)
+    args = parser.parse_args()
 
-    fake = Faker('en_AU')
+    out_dir = Path(args.out)
+    ensure_dir(out_dir)
 
-    # -------------------------------
-    # CUSTOMERS
-    # -------------------------------
-    customers_path = out/'customers.csv'
-    with customers_path.open('w', encoding='utf-8') as f:
-        f.write('customer_id,natural_key,first_name,last_name,email,phone,address_line1,address_line2,city,state_region,postcode,country_code,latitude,longitude,birth_date,join_ts,is_vip,gdpr_consent\n')
-        for i in range(1, 1001):
-            nk = 'CUST-' + rstr.rstr('A-Z0-9', 8)
-            email = fake.email() if random.random()>0.1 else 'bad_email'
-            lat = -44 + random.random()*10; lon = 112 + random.random()*40
-            birth = date(1960,1,1) + timedelta(days=random.randint(0, 20000))
-            join_ts = datetime(2024,1,1) + timedelta(days=random.randint(0, 400), seconds=random.randint(0, 86399))
-            f.write(f"{i},{nk},{fake.first_name()},{fake.last_name()},{email},{fake.phone_number().replace(',',' ')},{fake.street_address().replace(',',' ')},,{fake.city().replace(',',' ')},{fake.state_abbr()},{fake.postcode()},AU,{lat:.6f},{lon:.6f},{birth.isoformat()},{join_ts.isoformat()},{str(random.random()<0.15)},{str(random.random()>0.05)}\n")
+    # --- Generate all datasets ---
+    customers = generate_customers(seed=args.seed)
+    products = generate_products(seed=args.seed)
+    stores = generate_stores()
+    suppliers = generate_suppliers()
+    orders_header, orders_lines = generate_orders(customers, stores, seed=args.seed)
+    shipments = generate_shipments(orders_header)
+    returns = generate_returns(orders_header)
+    rates = generate_exchange_rates()
+    sensors = generate_sensors()
+    events = generate_events()
 
-    # -------------------------------
-    # PRODUCTS
-    # -------------------------------
-    products_path = out/'products.csv'
-    categories = {
-        "Electronics": ["Smartphones", "Laptops", "Headphones", "Tablets"],
-        "Home Appliances": ["Refrigerators", "Microwaves", "Air Conditioners"],
-        "Furniture": ["Chairs", "Tables", "Beds"],
-        "Sports": ["Fitness", "Cycling", "Running"]
-    }
+    # --- Write to disk ---
+    customers.to_csv(out_dir / "customers.csv", index=False)
+    products.to_csv(out_dir / "products.csv", index=False)
+    stores.to_csv(out_dir / "stores.csv", index=False)
+    suppliers.to_csv(out_dir / "suppliers.csv", index=False)
+    orders_header.to_csv(out_dir / "orders_header.csv", index=False)
+    orders_lines.to_csv(out_dir / "orders_lines.csv", index=False)
+    shipments.to_parquet(out_dir / "shipments.parquet", index=False)
+    returns.to_parquet(out_dir / "returns_day1.parquet", index=False)
+    rates.to_parquet(out_dir / "exchange_rates.parquet", index=False)
+    sensors.to_parquet(out_dir / "sensors.parquet", index=False)
 
-    with products_path.open('w', encoding='utf-8') as f:
-        f.write('product_id,sku,name,category,subcategory,current_price,currency,is_discontinued,introduced_dt,discontinued_dt\n')
-        pid = 1
-        for category, subcats in categories.items():
-            for subcat in subcats:
-                for _ in range(25):  # ~400 total products
-                    sku = 'SKU-' + rstr.rstr('A-Z0-9', 6)
-                    name = f"{fake.word().capitalize()} {subcat[:-1] if subcat.endswith('s') else subcat}"
-                    price = round(random.uniform(50, 5000), 2)
-                    is_disc = random.random() < 0.1
-                    introduced = date(2020, 1, 1) + timedelta(days=random.randint(0, 1500))
-                    discontinued = introduced + timedelta(days=random.randint(300, 1000)) if is_disc else ""
-                    f.write(f"{pid},{sku},{name},{category},{subcat},{price:.4f},AUD,{is_disc},{introduced},{discontinued}\n")
-                    pid += 1
+    with open(out_dir / "events.json", "w") as f:
+        json.dump(events, f, indent=2)
 
-    # Convert products.csv to products.parquet
-    products_tbl = pv.read_csv(products_path)
-    pq.write_table(products_tbl, out/'products.parquet', compression='snappy')
+    print(f"✅ Sample raw data written to {out_dir}")
+    print("Files written:")
+    for f in sorted(os.listdir(out_dir)):
+        print(f" - {f}")
 
-    # -------------------------------
-    # SHIPMENTS
-    # -------------------------------
-    tbl = pa.table({
-        'shipment_id': pa.array(range(1, 10001), type=pa.int64()),
-        'order_id': pa.array(range(1, 10001), type=pa.int64()),
-        'carrier': pa.array(['AUSPOST']*10000, type=pa.string()),
-        'shipped_at': pa.array([datetime(2024,1,1)+timedelta(days=i%90) for i in range(10000)], type=pa.timestamp('us')),
-        'delivered_at': pa.array([datetime(2024,1,2)+timedelta(days=i%90) for i in range(10000)], type=pa.timestamp('us')),
-        'ship_cost': pa.array([Decimal("1995.00")]*10000, type=pa.decimal128(12, 2)),
-    })
-    pq.write_table(tbl, out/'shipments.parquet', compression='snappy')
-
-    print(f"✅ Sample raw written to {out}. Includes customers.csv, products.csv, products.parquet, and shipments.parquet")
-    print("Files written:\n - customers.csv\n - products.csv\n - products.parquet\n - shipments.parquet")
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
