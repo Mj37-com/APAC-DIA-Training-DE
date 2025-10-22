@@ -1,5 +1,5 @@
 -- Run dbt run --select fct_sales --profiles-dir ./profiles
-{{ config(materialized='view') }}
+{{ config(materialized='incremental') }}
 
 with base as (
     select
@@ -25,3 +25,5 @@ select
         else amount * price 
     end as discounted_revenue
 from base
+
+# run this inside dbt dbt run --profiles-dir ..
