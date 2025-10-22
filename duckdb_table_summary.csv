@@ -1,0 +1,17 @@
+schema,table_name,row_count,column_count
+main,bronze_customers,50,4
+main,bronze_events,100,4
+main,bronze_exchange_rates,365,3
+main,bronze_orders_header,200,5
+main,bronze_orders_lines,400,4
+main,bronze_products,325,10
+main,bronze_returns_day1,50,4
+main,bronze_sensors,100,4
+main,bronze_shipments,200,4
+main,bronze_stores,10,3
+main,bronze_suppliers,10,3
+main_gold,dim_date,1825,8
+main_silver,fct_customers,1000,18
+main_silver,fct_products,325,10
+main_stg,stg_customers,1000,18
+main_stg,stg_products,325,10

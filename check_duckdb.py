@@ -1,50 +1,44 @@
 import duckdb
 import pandas as pd
 
-# Connect to your DuckDB database
-conn = duckdb.connect('duckdb/warehouse.duckdb')
+# --- Connect to your DuckDB database ---
+con = duckdb.connect("duckdb/warehouse.duckdb")
 
-# Get all user tables (exclude system schemas)
-tables = conn.execute("""
+# --- Get all tables from all schemas ---
+tables = con.execute("""
     SELECT table_schema, table_name
     FROM information_schema.tables
-    WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
+    WHERE table_type = 'BASE TABLE'
     ORDER BY table_schema, table_name
-""").fetchdf()
+""").fetchall()
 
-results = []
+# --- Collect row and column counts ---
+summary_data = []
 
-# Loop through each table and get row count + columns
-for _, row in tables.iterrows():
-    schema = row["table_schema"]
-    table = row["table_name"]
-    full_name = f"{schema}.{table}"
-
+for schema, table in tables:
+    full_table = f'"{schema}"."{table}"'
     try:
-        # Row count
-        count = conn.execute(f"SELECT COUNT(*) FROM {full_name}").fetchone()[0]
-
-        # Column names
-        cols = conn.execute(f"DESCRIBE {full_name}").fetchdf()["column_name"].tolist()
-        col_list = ", ".join(cols)
-
-        results.append({
-            "table_name": table,
-            "row_count": count,
-            "columns": col_list
-        })
+        row_count = con.execute(f"SELECT COUNT(*) FROM {full_table}").fetchone()[0]
+        columns = con.execute(f"PRAGMA table_info({full_table})").fetchdf()
+        col_count = len(columns)
     except Exception as e:
-        results.append({
-            "table_name": table,
-            "row_count": "Error",
-            "columns": str(e)
-        })
+        row_count = "Error"
+        col_count = "-"
+    
+    summary_data.append({
+        "schema": schema,
+        "table_name": table,
+        "row_count": row_count,
+        "column_count": col_count
+    })
 
-# Convert to DataFrame for pretty print
-df_results = pd.DataFrame(results)
+# --- Create DataFrame ---
+df_summary = pd.DataFrame(summary_data)
 
-# Print neatly
-print("\n📊 DuckDB Table Summary:")
-print(df_results.to_string(index=False))
+# --- Display summary ---
+print("\n📊 DuckDB Table Summary:\n")
+print(df_summary.to_string(index=False))
 
-conn.close()
+# --- Save to CSV ---
+df_summary.to_csv("duckdb_table_summary.csv", index=False)
+print("\n✅ Summary saved to 'duckdb_table_summary.csv'")
