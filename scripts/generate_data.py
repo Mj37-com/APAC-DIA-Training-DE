@@ -13,32 +13,62 @@ def generate_customers(n=50, seed=42):
     np.random.seed(seed)
     return pd.DataFrame({
         "customer_id": range(1, n + 1),
-        "customer_name": [f"Customer_{i}" for i in range(1, n + 1)],
-        "region": np.random.choice(["North", "South", "East", "West"], n),
-        "join_date": pd.date_range("2023-01-01", periods=n).strftime("%Y-%m-%d")
+        "natural_key": [f"CUST_{i:04d}" for i in range(1, n + 1)],
+        "first_name": [f"First_{i}" for i in range(1, n + 1)],
+        "last_name": [f"Last_{i}" for i in range(1, n + 1)],
+        "email": [f"user{i}@example.com" for i in range(1, n + 1)],
+        "phone": [f"+63{np.random.randint(900, 999)}{np.random.randint(1000000, 9999999)}" for _ in range(n)],
+        "address_line1": [f"{i} Main St" for i in range(1, n + 1)],
+        "address_line2": [f"Apt {i}" for i in range(1, n + 1)],
+        "city": np.random.choice(["Manila", "Cebu", "Davao", "Baguio"], n),
+        "state_region": np.random.choice(["NCR", "Visayas", "Mindanao"], n),
+        "postcode": [f"{np.random.randint(1000,9999)}" for _ in range(n)],
+        "country_code": ["PH"]*n,
+        "latitude": np.random.uniform(10.0, 14.0, n),
+        "longitude": np.random.uniform(120.0, 125.0, n),
+        "birth_date": pd.date_range("1970-01-01", periods=n).date,
+        "join_ts": pd.date_range("2023-01-01", periods=n, freq="D"),
+        "is_vip": np.random.choice([True, False], n),
+        "gdpr_consent": np.random.choice([True, False], n),
     })
 
 def generate_products(n=20, seed=42):
     np.random.seed(seed)
     return pd.DataFrame({
         "product_id": range(1, n + 1),
-        "product_name": [f"Product_{i}" for i in range(1, n + 1)],
+        "sku": [f"SKU_{i:04d}" for i in range(1, n + 1)],
+        "name": [f"Product_{i}" for i in range(1, n + 1)],
         "category": np.random.choice(["Electronics", "Clothing", "Food", "Home"], n),
-        "price": np.random.randint(100, 1000, n)
+        "subcategory": np.random.choice(["Sub1", "Sub2", "Sub3"], n),
+        "current_price": np.round(np.random.uniform(100, 1000, n), 2),
+        "currency": ["PHP"]*n,
+        "is_discontinued": np.random.choice([True, False], n),
+        "introduced_dt": pd.date_range("2020-01-01", periods=n).date,
+        "discontinued_dt": [None]*n,
     })
 
 def generate_stores(n=10):
     return pd.DataFrame({
         "store_id": range(1, n + 1),
-        "store_name": [f"Store_{i}" for i in range(1, n + 1)],
-        "city": np.random.choice(["Manila", "Cebu", "Davao", "Baguio"], n)
+        "store_code": [f"S{i:03d}" for i in range(1, n + 1)],
+        "name": [f"Store_{i}" for i in range(1, n + 1)],
+        "channel": np.random.choice(["Online", "Offline"], n),
+        "region": np.random.choice(["North", "South", "East", "West"], n),
+        "state": np.random.choice(["NCR", "Visayas", "Mindanao"], n),
+        "latitude": np.random.uniform(10.0, 14.0, n),
+        "longitude": np.random.uniform(120.0, 125.0, n),
+        "open_dt": pd.date_range("2020-01-01", periods=n).date,
+        "close_dt": [None]*n,
     })
 
 def generate_suppliers(n=10):
     return pd.DataFrame({
         "supplier_id": range(1, n + 1),
-        "supplier_name": [f"Supplier_{i}" for i in range(1, n + 1)],
-        "country": np.random.choice(["PH", "SG", "US", "JP"], n)
+        "supplier_code": [f"SUP{i:03d}" for i in range(1, n + 1)],
+        "name": [f"Supplier_{i}" for i in range(1, n + 1)],
+        "country_code": np.random.choice(["PH", "SG", "US", "JP"], n),
+        "lead_time_days": np.random.randint(1, 30, n),
+        "preferred": np.random.choice([True, False], n),
     })
 
 def generate_orders(customers, stores, seed=42):
@@ -47,16 +77,24 @@ def generate_orders(customers, stores, seed=42):
     order_ids = range(1, n + 1)
     header = pd.DataFrame({
         "order_id": order_ids,
+        "order_ts": pd.date_range("2024-01-01", periods=n, freq="H"),
+        "order_dt_local": pd.date_range("2024-01-01", periods=n).date,
         "customer_id": np.random.choice(customers["customer_id"], n),
         "store_id": np.random.choice(stores["store_id"], n),
-        "order_date": pd.date_range("2024-01-01", periods=n).strftime("%Y-%m-%d"),
-        "total_amount": np.random.uniform(500, 10000, n).round(2)
+        "channel": np.random.choice(["Online", "Offline"], n),
+        "payment_method": np.random.choice(["Cash", "Card", "E-Wallet"], n),
+        "coupon_code": [None]*n,
+        "shipping_fee": np.round(np.random.uniform(50, 200, n), 2),
+        "currency": ["PHP"]*n,
     })
     lines = pd.DataFrame({
         "order_id": np.repeat(order_ids, 2),
-        "product_id": np.random.randint(1, 21, n * 2),
-        "quantity": np.random.randint(1, 10, n * 2),
-        "unit_price": np.random.randint(100, 1000, n * 2)
+        "line_number": np.tile([1,2], n),
+        "product_id": np.random.randint(1, 21, n*2),
+        "qty": np.random.randint(1, 10, n*2),
+        "unit_price": np.round(np.random.uniform(100, 1000, n*2), 2),
+        "line_discount_pct": np.round(np.random.uniform(0, 0.2, n*2), 4),
+        "tax_pct": np.round(np.random.uniform(0, 0.15, n*2), 4),
     })
     return header, lines
 
@@ -65,33 +103,40 @@ def generate_shipments(orders):
     return pd.DataFrame({
         "shipment_id": range(1, n + 1),
         "order_id": orders["order_id"],
-        "ship_date": pd.to_datetime(orders["order_date"]) + pd.to_timedelta(np.random.randint(1, 7, n), "D"),
-        "status": np.random.choice(["In Transit", "Delivered", "Returned"], n)
+        "carrier": np.random.choice(["J&T", "LBC", "2GO"], n),
+        "shipped_at": orders["order_ts"] + pd.to_timedelta(np.random.randint(1,5,n), "h"),
+        "delivered_at": orders["order_ts"] + pd.to_timedelta(np.random.randint(5,72,n), "h"),
+        "ship_cost": np.round(np.random.uniform(50, 200, n), 2),
     })
 
-def generate_returns(orders):
+def generate_returns(orders_lines):
+    n = len(orders_lines)//4
     return pd.DataFrame({
-        "return_id": range(1, len(orders)//4 + 1),
-        "order_id": np.random.choice(orders["order_id"], len(orders)//4),
-        "return_date": pd.to_datetime("2024-07-01") + pd.to_timedelta(np.random.randint(1, 20, len(orders)//4), "D"),
-        "reason": np.random.choice(["Defective", "Wrong Item", "Late Delivery"], len(orders)//4)
+        "return_id": range(1, n+1),
+        "order_id": np.random.choice(orders_lines["order_id"], n),
+        "product_id": np.random.choice(orders_lines["product_id"], n),
+        "return_ts": pd.date_range("2024-07-01", periods=n, freq="H"),
+        "qty": np.random.randint(1, 5, n),
+        "reason": np.random.choice(["Defective", "Wrong Item", "Late Delivery"], n),
     })
 
 def generate_exchange_rates():
     dates = pd.date_range("2024-01-01", periods=365)
     return pd.DataFrame({
         "date": dates,
-        "USD_PHP": 55 + np.random.normal(0, 0.5, len(dates)),
-        "USD_SGD": 1.34 + np.random.normal(0, 0.01, len(dates))
+        "currency": ["USD"]*len(dates),
+        "rate_to_aud": np.round(np.random.uniform(0.5, 2.0, len(dates)), 8),
     })
 
 def generate_sensors():
-    times = pd.date_range("2024-01-01", periods=100, freq="H")
+    times = pd.date_range("2024-01-01", periods=100, freq="h")
     return pd.DataFrame({
-        "sensor_id": np.random.randint(1000, 1100, len(times)),
-        "timestamp": times,
-        "temperature": np.random.uniform(20, 35, len(times)),
-        "humidity": np.random.uniform(40, 80, len(times))
+        "sensor_ts": times,
+        "store_id": np.random.randint(1, 11, len(times)),
+        "shelf_id": [f"SHELF_{i}" for i in range(len(times))],
+        "temperature_c": np.round(np.random.uniform(20,35,len(times)),2),
+        "humidity_pct": np.round(np.random.uniform(40,80,len(times)),2),
+        "battery_mv": np.random.randint(3000,4200,len(times)),
     })
 
 def generate_events():
@@ -99,12 +144,14 @@ def generate_events():
     event_types = ["click", "view", "purchase", "add_to_cart"]
     for i in range(100):
         events.append({
-            "event_id": i + 1,
-            "timestamp": (datetime.now() - timedelta(minutes=np.random.randint(0, 10000))).isoformat(),
-            "event_type": np.random.choice(event_types),
-            "customer_id": np.random.randint(1, 51)
+            "json": json.dumps({
+                "event_id": i + 1,
+                "timestamp": (datetime.now() - timedelta(minutes=np.random.randint(0, 10000))).isoformat(),
+                "event_type": np.random.choice(event_types),
+                "customer_id": np.random.randint(1, 51)
+            })
         })
-    return events
+    return pd.DataFrame(events)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -115,19 +162,19 @@ def main():
     out_dir = Path(args.out)
     ensure_dir(out_dir)
 
-    # --- Generate all datasets ---
+    # --- Generate datasets ---
     customers = generate_customers(seed=args.seed)
     products = generate_products(seed=args.seed)
     stores = generate_stores()
     suppliers = generate_suppliers()
     orders_header, orders_lines = generate_orders(customers, stores, seed=args.seed)
     shipments = generate_shipments(orders_header)
-    returns = generate_returns(orders_header)
+    returns = generate_returns(orders_lines)
     rates = generate_exchange_rates()
     sensors = generate_sensors()
     events = generate_events()
 
-    # --- Write to disk ---
+    # --- Write files ---
     customers.to_csv(out_dir / "customers.csv", index=False)
     products.to_csv(out_dir / "products.csv", index=False)
     stores.to_csv(out_dir / "stores.csv", index=False)
@@ -138,9 +185,7 @@ def main():
     returns.to_parquet(out_dir / "returns_day1.parquet", index=False)
     rates.to_parquet(out_dir / "exchange_rates.parquet", index=False)
     sensors.to_parquet(out_dir / "sensors.parquet", index=False)
-
-    with open(out_dir / "events.json", "w") as f:
-        json.dump(events, f, indent=2)
+    events.to_csv(out_dir / "events.csv", index=False)
 
     print(f"✅ Sample raw data written to {out_dir}")
     print("Files written:")

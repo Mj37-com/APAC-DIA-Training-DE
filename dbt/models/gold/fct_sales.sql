@@ -25,5 +25,3 @@ select
         else amount * price 
     end as discounted_revenue
 from base
-
-# run this inside dbt dbt run --profiles-dir ..

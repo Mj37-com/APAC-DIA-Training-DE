@@ -2,6 +2,8 @@ import os
 import argparse
 import duckdb
 import pandas as pd
+from pathlib import Path
+import json
 
 def read_file(filepath):
     """Read CSV, Parquet, or JSON depending on file extension."""
@@ -11,7 +13,10 @@ def read_file(filepath):
     elif ext == ".parquet":
         return pd.read_parquet(filepath)
     elif ext == ".json":
-        return pd.read_json(filepath)
+        # read JSON array or dicts
+        with open(filepath) as f:
+            data = json.load(f)
+        return pd.DataFrame(data)
     else:
         raise ValueError(f"Unsupported file type: {ext}")
 
@@ -21,7 +26,7 @@ def load_to_bronze(raw_dir, lake_dir, manifest_path):
 
     files_expected = [
         "customers.csv",
-        "products.parquet",
+        "products.csv",
         "stores.csv",
         "suppliers.csv",
         "orders_header.csv",
@@ -44,24 +49,15 @@ def load_to_bronze(raw_dir, lake_dir, manifest_path):
 
         try:
             df = read_file(file_path)
-            print(f"📦 Reading {filename} ({len(df)} rows)...")
+            print(f"📦 Reading {filename} ({len(df)} rows, {len(df.columns)} columns)...")
 
-            # Try to read schema from manifest
-            if con.execute(f"SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '{table_name}'").fetchone()[0]:
-                existing_cols = [c[0] for c in con.execute(f"DESCRIBE {table_name}").fetchall()]
-                df_cols = df.columns.tolist()
-                if set(existing_cols) != set(df_cols):
-                    print(f"⚠️ Column mismatch detected for {filename}. Auto-aligning columns.")
-                    for col in existing_cols:
-                        if col not in df.columns:
-                            df[col] = None
-                    df = df[existing_cols]
-
+            # write to parquet first
             df.to_parquet(output_path, index=False)
             print(f"💾 Written to {output_path}")
 
+            # overwrite DuckDB table with all columns from df
             con.execute(f"CREATE OR REPLACE TABLE {table_name} AS SELECT * FROM parquet_scan('{output_path}')")
-            print(f"🧾 Table registered in DuckDB: {table_name}")
+            print(f"🧾 Table registered in DuckDB: {table_name} ({len(df)} rows, {len(df.columns)} columns)")
 
         except Exception as e:
             print(f"❌ Error reading {filename}: {e}")
@@ -77,7 +73,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     load_to_bronze(args.raw, args.lake, args.manifest)
-
-# reset and reload 
-# rm duckdb/warehouse.duckdb
-# PYTHONPATH=. python scripts/load_to_bronze.py --raw scripts/data_raw --lake lake --manifest duckdb/warehouse.duckdb
