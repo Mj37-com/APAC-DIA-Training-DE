@@ -1,10 +1,11 @@
 schema,table_name,row_count,column_count
 main,bronze_customers,80000,18
+main,bronze_events,1998983,6
 main,bronze_exchange_rates,5475,3
-main,bronze_manifest,5,4
 main,bronze_orders_header,1000427,11
 main,bronze_orders_lines,3003978,7
 main,bronze_products,25000,10
+main,bronze_returns,207000,7
 main,bronze_sensors,6000000,6
 main,bronze_shipments,1000000,6
 main,bronze_stores,5000,10
