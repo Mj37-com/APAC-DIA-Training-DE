@@ -1,11 +1,12 @@
 {% snapshot products_snapshot %}
-{{
-  config(
-    target_schema='snapshot',
+{{ config(
+    target_schema='snapshots',
     unique_key='product_id',
     strategy='check',
-    check_cols=['name','category','subcategory','current_price','currency','is_discontinued']
-  )
-}}
-select * from bronze_products -- TODO: create bronze_products view
+    check_cols=['price', 'name', 'category']
+) }}
+
+SELECT *
+FROM {{ source('bronze', 'bronze_products') }}
+
 {% endsnapshot %}

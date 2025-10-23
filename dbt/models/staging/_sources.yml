@@ -1,0 +1,17 @@
+version: 2
+
+sources:
+  - name: bronze
+    schema: main       # <-- schema where your bronze tables live
+    tables:
+      - name: bronze_customers
+      - name: bronze_events
+      - name: bronze_exchange_rates
+      - name: bronze_orders_header
+      - name: bronze_orders_lines
+      - name: bronze_products
+      - name: bronze_returns
+      - name: bronze_sensors
+      - name: bronze_shipments
+      - name: bronze_stores
+      - name: bronze_suppliers
