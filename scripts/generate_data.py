@@ -1,196 +1,240 @@
 import os
-import argparse
-import pandas as pd
-import numpy as np
 import json
-from datetime import datetime, timedelta
+import numpy as np
+import pandas as pd
 from pathlib import Path
+from faker import Faker
 
-def ensure_dir(path):
-    os.makedirs(path, exist_ok=True)
+fake = Faker()
 
-def generate_customers(n=50, seed=42):
-    np.random.seed(seed)
-    return pd.DataFrame({
-        "customer_id": range(1, n + 1),
-        "natural_key": [f"CUST_{i:04d}" for i in range(1, n + 1)],
-        "first_name": [f"First_{i}" for i in range(1, n + 1)],
-        "last_name": [f"Last_{i}" for i in range(1, n + 1)],
-        "email": [f"user{i}@example.com" for i in range(1, n + 1)],
-        "phone": [f"+63{np.random.randint(900, 999)}{np.random.randint(1000000, 9999999)}" for _ in range(n)],
-        "address_line1": [f"{i} Main St" for i in range(1, n + 1)],
-        "address_line2": [f"Apt {i}" for i in range(1, n + 1)],
-        "city": np.random.choice(["Manila", "Cebu", "Davao", "Baguio"], n),
-        "state_region": np.random.choice(["NCR", "Visayas", "Mindanao"], n),
-        "postcode": [f"{np.random.randint(1000,9999)}" for _ in range(n)],
-        "country_code": ["PH"]*n,
-        "latitude": np.random.uniform(10.0, 14.0, n),
-        "longitude": np.random.uniform(120.0, 125.0, n),
-        "birth_date": pd.date_range("1970-01-01", periods=n).date,
-        "join_ts": pd.date_range("2023-01-01", periods=n, freq="D"),
-        "is_vip": np.random.choice([True, False], n),
-        "gdpr_consent": np.random.choice([True, False], n),
+# ============================================================
+# Utility: Random helpers
+# ============================================================
+def random_date_range(start, end, n):
+    """Generate n random datetimes between start and end."""
+    return pd.to_datetime(np.random.randint(int(start.value // 10**9),
+                                            int(end.value // 10**9),
+                                            n), unit='s')
+
+# ============================================================
+# Customers
+# ============================================================
+def generate_customers(n=80_000):
+    print("Generating customers...")
+    df = pd.DataFrame({
+        "customer_id": np.arange(1, n + 1),
+        "natural_key": [f"CUST-{fake.bothify(text='????????').upper()}" for _ in range(n)],
+        "first_name": [fake.first_name() for _ in range(n)],
+        "last_name": [fake.last_name() for _ in range(n)],
+        "email": [fake.email() for _ in range(n)],
+        "phone": [fake.phone_number() for _ in range(n)],
+        "birth_date": [fake.date_of_birth(minimum_age=18, maximum_age=80) for _ in range(n)],
+        "address_line1": [fake.street_address() for _ in range(n)],
+        "address_line2": [fake.secondary_address() for _ in range(n)],
+        "city": [fake.city() for _ in range(n)],
+        "state_region": [fake.state() for _ in range(n)],
+        "postcode": [fake.postcode() for _ in range(n)],
+        "country_code": [fake.country_code() for _ in range(n)],
+        "latitude": [fake.latitude() for _ in range(n)],
+        "longitude": [fake.longitude() for _ in range(n)],
+    })
+    return df
+
+# ============================================================
+# Products
+# ============================================================
+def generate_products(n=2000):
+    print("Generating products...")
+    df = pd.DataFrame({
+        "product_id": np.arange(1, n + 1),
+        "natural_key": [f"PROD-{fake.bothify(text='????????').upper()}" for _ in range(n)],
+        "name": [fake.word().capitalize() for _ in range(n)],
+        "category": np.random.choice(["Electronics", "Clothing", "Toys", "Home", "Sports"], n),
+        "price": np.random.uniform(5, 1000, n).round(2),
+        "currency": "USD",
+    })
+    return df
+
+# ============================================================
+# Stores
+# ============================================================
+def generate_stores(n=200):
+    print("Generating stores...")
+    df = pd.DataFrame({
+        "store_id": np.arange(1, n + 1),
+        "natural_key": [f"STORE-{fake.bothify(text='??????').upper()}" for _ in range(n)],
+        "name": [fake.company() for _ in range(n)],
+        "city": [fake.city() for _ in range(n)],
+        "country_code": [fake.country_code() for _ in range(n)],
+        "latitude": [fake.latitude() for _ in range(n)],
+        "longitude": [fake.longitude() for _ in range(n)],
+    })
+    return df
+
+# ============================================================
+# Suppliers
+# ============================================================
+def generate_suppliers(n=500):
+    print("Generating suppliers...")
+    df = pd.DataFrame({
+        "supplier_id": np.arange(1, n + 1),
+        "natural_key": [f"SUP-{fake.bothify(text='??????').upper()}" for _ in range(n)],
+        "name": [fake.company() for _ in range(n)],
+        "contact_name": [fake.name() for _ in range(n)],
+        "phone": [fake.phone_number() for _ in range(n)],
+        "email": [fake.company_email() for _ in range(n)],
+        "country_code": [fake.country_code() for _ in range(n)],
+    })
+    return df
+
+# ============================================================
+# Orders
+# ============================================================
+def generate_orders(n_orders=500_000):
+    print("Generating orders (headers + lines) ... this may take time for large counts")
+    customers = np.arange(1, 80_001)
+    stores = np.arange(1, 201)
+    products = np.arange(1, 2001)
+
+    order_dates = pd.date_range("2024-01-01", periods=365, freq="d")
+    orders = pd.DataFrame({
+        "order_id": np.arange(1, n_orders + 1),
+        "customer_id": np.random.choice(customers, n_orders),
+        "store_id": np.random.choice(stores, n_orders),
+        "order_date": np.random.choice(order_dates, n_orders),
+        "total_amount": np.random.uniform(10, 5000, n_orders).round(2),
     })
 
-def generate_products(n=20, seed=42):
-    np.random.seed(seed)
-    return pd.DataFrame({
-        "product_id": range(1, n + 1),
-        "sku": [f"SKU_{i:04d}" for i in range(1, n + 1)],
-        "name": [f"Product_{i}" for i in range(1, n + 1)],
-        "category": np.random.choice(["Electronics", "Clothing", "Food", "Home"], n),
-        "subcategory": np.random.choice(["Sub1", "Sub2", "Sub3"], n),
-        "current_price": np.round(np.random.uniform(100, 1000, n), 2),
-        "currency": ["PHP"]*n,
-        "is_discontinued": np.random.choice([True, False], n),
-        "introduced_dt": pd.date_range("2020-01-01", periods=n).date,
-        "discontinued_dt": [None]*n,
-    })
-
-def generate_stores(n=10):
-    return pd.DataFrame({
-        "store_id": range(1, n + 1),
-        "store_code": [f"S{i:03d}" for i in range(1, n + 1)],
-        "name": [f"Store_{i}" for i in range(1, n + 1)],
-        "channel": np.random.choice(["Online", "Offline"], n),
-        "region": np.random.choice(["North", "South", "East", "West"], n),
-        "state": np.random.choice(["NCR", "Visayas", "Mindanao"], n),
-        "latitude": np.random.uniform(10.0, 14.0, n),
-        "longitude": np.random.uniform(120.0, 125.0, n),
-        "open_dt": pd.date_range("2020-01-01", periods=n).date,
-        "close_dt": [None]*n,
-    })
-
-def generate_suppliers(n=10):
-    return pd.DataFrame({
-        "supplier_id": range(1, n + 1),
-        "supplier_code": [f"SUP{i:03d}" for i in range(1, n + 1)],
-        "name": [f"Supplier_{i}" for i in range(1, n + 1)],
-        "country_code": np.random.choice(["PH", "SG", "US", "JP"], n),
-        "lead_time_days": np.random.randint(1, 30, n),
-        "preferred": np.random.choice([True, False], n),
-    })
-
-def generate_orders(customers, stores, seed=42):
-    np.random.seed(seed)
-    n = 200
-    order_ids = range(1, n + 1)
-    header = pd.DataFrame({
-        "order_id": order_ids,
-        "order_ts": pd.date_range("2024-01-01", periods=n, freq="H"),
-        "order_dt_local": pd.date_range("2024-01-01", periods=n).date,
-        "customer_id": np.random.choice(customers["customer_id"], n),
-        "store_id": np.random.choice(stores["store_id"], n),
-        "channel": np.random.choice(["Online", "Offline"], n),
-        "payment_method": np.random.choice(["Cash", "Card", "E-Wallet"], n),
-        "coupon_code": [None]*n,
-        "shipping_fee": np.round(np.random.uniform(50, 200, n), 2),
-        "currency": ["PHP"]*n,
-    })
+    n_lines = n_orders * 2
     lines = pd.DataFrame({
-        "order_id": np.repeat(order_ids, 2),
-        "line_number": np.tile([1,2], n),
-        "product_id": np.random.randint(1, 21, n*2),
-        "qty": np.random.randint(1, 10, n*2),
-        "unit_price": np.round(np.random.uniform(100, 1000, n*2), 2),
-        "line_discount_pct": np.round(np.random.uniform(0, 0.2, n*2), 4),
-        "tax_pct": np.round(np.random.uniform(0, 0.15, n*2), 4),
+        "order_line_id": np.arange(1, n_lines + 1),
+        "order_id": np.random.choice(orders["order_id"], n_lines),
+        "product_id": np.random.choice(products, n_lines),
+        "quantity": np.random.randint(1, 10, n_lines),
+        "unit_price": np.random.uniform(5, 1000, n_lines).round(2),
     })
-    return header, lines
+    return orders, lines
 
-def generate_shipments(orders):
-    n = len(orders)
-    return pd.DataFrame({
-        "shipment_id": range(1, n + 1),
-        "order_id": orders["order_id"],
-        "carrier": np.random.choice(["J&T", "LBC", "2GO"], n),
-        "shipped_at": orders["order_ts"] + pd.to_timedelta(np.random.randint(1,5,n), "h"),
-        "delivered_at": orders["order_ts"] + pd.to_timedelta(np.random.randint(5,72,n), "h"),
-        "ship_cost": np.round(np.random.uniform(50, 200, n), 2),
+# ============================================================
+# Shipments
+# ============================================================
+def generate_shipments(n=200_000):
+    print("Generating shipments...")
+    df = pd.DataFrame({
+        "shipment_id": np.arange(1, n + 1),
+        "order_id": np.random.randint(1, 500_001, n),
+        "shipped_date": pd.date_range("2024-01-01", periods=n, freq="h"),
+        "delivery_date": pd.date_range("2024-01-02", periods=n, freq="h"),
+        "carrier": np.random.choice(["FedEx", "UPS", "DHL"], n),
     })
+    return df
 
-def generate_returns(orders_lines):
-    n = len(orders_lines)//4
-    return pd.DataFrame({
-        "return_id": range(1, n+1),
-        "order_id": np.random.choice(orders_lines["order_id"], n),
-        "product_id": np.random.choice(orders_lines["product_id"], n),
-        "return_ts": pd.date_range("2024-07-01", periods=n, freq="H"),
-        "qty": np.random.randint(1, 5, n),
-        "reason": np.random.choice(["Defective", "Wrong Item", "Late Delivery"], n),
+# ============================================================
+# Returns
+# ============================================================
+def generate_returns(n=50_000):
+    print("Generating returns (v1/v2 + upsert/delete)...")
+    df = pd.DataFrame({
+        "return_id": np.arange(1, n + 1),
+        "order_id": np.random.randint(1, 500_001, n),
+        "product_id": np.random.randint(1, 2001, n),
+        "return_reason": np.random.choice(["Damaged", "Wrong Item", "Not Needed", "Late Delivery"], n),
+        "return_ts": pd.date_range("2024-07-01", periods=n, freq="h"),
     })
+    return df
 
-def generate_exchange_rates():
-    dates = pd.date_range("2024-01-01", periods=365)
-    return pd.DataFrame({
-        "date": dates,
-        "currency": ["USD"]*len(dates),
-        "rate_to_aud": np.round(np.random.uniform(0.5, 2.0, len(dates)), 8),
+# ============================================================
+# Exchange Rates (Excel)
+# ============================================================
+def generate_exchange_rates(out_dir):
+    print("Generating exchange rates (XLSX)...")
+    currencies = ["USD", "EUR", "GBP", "JPY", "AUD"]
+    df = pd.DataFrame({
+        "date": pd.date_range("2024-01-01", periods=365, freq="d"),
     })
+    for cur in currencies:
+        df[cur] = np.random.uniform(0.5, 1.5, len(df)).round(4)
+    df.to_excel(out_dir / "exchange_rates.xlsx", index=False, engine="openpyxl")
+    return df
 
-def generate_sensors():
-    times = pd.date_range("2024-01-01", periods=100, freq="h")
-    return pd.DataFrame({
-        "sensor_ts": times,
-        "store_id": np.random.randint(1, 11, len(times)),
-        "shelf_id": [f"SHELF_{i}" for i in range(len(times))],
-        "temperature_c": np.round(np.random.uniform(20,35,len(times)),2),
-        "humidity_pct": np.round(np.random.uniform(40,80,len(times)),2),
-        "battery_mv": np.random.randint(3000,4200,len(times)),
-    })
+# ============================================================
+# Events (JSONL)
+# ============================================================
+def generate_events(out_dir, total_events=2_000_000, seed=42):
+    np.random.seed(seed)
+    out_dir = Path(out_dir) / "events"
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-def generate_events():
-    events = []
-    event_types = ["click", "view", "purchase", "add_to_cart"]
-    for i in range(100):
-        events.append({
-            "json": json.dumps({
-                "event_id": i + 1,
-                "timestamp": (datetime.now() - timedelta(minutes=np.random.randint(0, 10000))).isoformat(),
+    print("Generating events (JSONL partitions)...")
+
+    months = pd.date_range("2024-01-01", periods=12, freq="MS")
+    event_types = ["click", "view", "purchase", "return", "add_to_cart"]
+    customer_ids = np.arange(1, 80_001)
+    product_ids = np.arange(1, 2001)
+
+    for month_dt in months:
+        month_str = month_dt.strftime("%Y-%m")
+        file_path = out_dir / f"events_{month_str}.jsonl"
+        times = pd.date_range(month_dt, periods=200, freq="h")
+
+        n_events = total_events // len(months)
+        events = []
+        for _ in range(n_events):
+            obj = {
+                "event_id": int(np.random.randint(1e9)),
                 "event_type": np.random.choice(event_types),
-                "customer_id": np.random.randint(1, 51)
-            })
-        })
-    return pd.DataFrame(events)
+                "customer_id": int(np.random.choice(customer_ids)),
+                "product_id": int(np.random.choice(product_ids)),
+                "event_ts": str(np.random.choice(times)),
+                "metadata": {
+                    "device": np.random.choice(["mobile", "desktop", "tablet"]),
+                    "channel": np.random.choice(["email", "social", "organic", "paid"]),
+                },
+            }
+            events.append(obj)
 
+        with open(file_path, "w", encoding="utf-8") as f:
+            for obj in events:
+                s = json.dumps(obj)
+                f.write(s + "\n")
+
+    print("✅ Event JSONL files generated successfully.")
+
+# ============================================================
+# Main
+# ============================================================
 def main():
+    import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--out", default="scripts/data_raw")
+    parser.add_argument("--out", type=str, default="scripts/data_raw")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
-    out_dir = Path(args.out)
-    ensure_dir(out_dir)
+    np.random.seed(args.seed)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
 
-    # --- Generate datasets ---
-    customers = generate_customers(seed=args.seed)
-    products = generate_products(seed=args.seed)
+    customers = generate_customers()
+    products = generate_products()
     stores = generate_stores()
     suppliers = generate_suppliers()
-    orders_header, orders_lines = generate_orders(customers, stores, seed=args.seed)
-    shipments = generate_shipments(orders_header)
-    returns = generate_returns(orders_lines)
-    rates = generate_exchange_rates()
-    sensors = generate_sensors()
-    events = generate_events()
+    orders, lines = generate_orders()
+    shipments = generate_shipments()
+    returns = generate_returns()
 
-    # --- Write files ---
-    customers.to_csv(out_dir / "customers.csv", index=False)
-    products.to_csv(out_dir / "products.csv", index=False)
-    stores.to_csv(out_dir / "stores.csv", index=False)
-    suppliers.to_csv(out_dir / "suppliers.csv", index=False)
-    orders_header.to_csv(out_dir / "orders_header.csv", index=False)
-    orders_lines.to_csv(out_dir / "orders_lines.csv", index=False)
-    shipments.to_parquet(out_dir / "shipments.parquet", index=False)
-    returns.to_parquet(out_dir / "returns_day1.parquet", index=False)
-    rates.to_parquet(out_dir / "exchange_rates.parquet", index=False)
-    sensors.to_parquet(out_dir / "sensors.parquet", index=False)
-    events.to_csv(out_dir / "events.csv", index=False)
+    customers.to_csv(out / "customers.csv", index=False)
+    products.to_csv(out / "products.csv", index=False)
+    stores.to_csv(out / "stores.csv", index=False)
+    suppliers.to_csv(out / "suppliers.csv", index=False)
+    orders.to_csv(out / "orders.csv", index=False)
+    lines.to_csv(out / "order_lines.csv", index=False)
+    shipments.to_csv(out / "shipments.csv", index=False)
+    returns.to_csv(out / "returns.csv", index=False)
 
-    print(f"✅ Sample raw data written to {out_dir}")
-    print("Files written:")
-    for f in sorted(os.listdir(out_dir)):
-        print(f" - {f}")
+    generate_exchange_rates(out_dir=out)
+    generate_events(out_dir=out, total_events=2_000_000, seed=args.seed)
+
+    print("✅ All data generated successfully!")
 
 if __name__ == "__main__":
     main()
