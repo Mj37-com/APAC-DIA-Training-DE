@@ -17,7 +17,7 @@ models:
   local_de_assessment:
     staging:
       +materialized: view
-      +schema: stg   # just the schema name, no "main"
+      +schema: stg
     silver:
       +materialized: table
       +schema: silver

@@ -1,0 +1,11 @@
+version: 2
+
+models:
+  - name: stg_orders_lines
+    description: "Staging table for orders lines"
+    columns:
+      - name: discount_percentage
+        description: "Discount percentage for each order line"
+        tests:
+          - not_null
+          - discount_percentage  # matches the SQL file name in tests/
