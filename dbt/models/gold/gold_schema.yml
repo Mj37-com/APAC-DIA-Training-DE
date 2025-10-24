@@ -1,0 +1,110 @@
+version: 2
+
+models:
+
+  # Dimensions
+  - name: dim_customer
+    description: "Customer dimension with GDPR masking and derived attributes"
+    columns:
+      - name: customer_id
+        tests:
+          - unique
+          - not_null
+      - name: email
+        description: "Masked if gdpr_consent is false"
+      - name: customer_segment
+        description: "Segment derived from VIP status and join date"
+
+  - name: dim_products
+    description: "Product dimension SCD Type 2"
+    columns:
+      - name: product_id
+        tests:
+          - unique
+          - not_null
+      - name: is_current
+        description: "Indicates current product version"
+      - name: price_changed_flag
+
+  - name: dim_store
+    description: "Store dimension with derived attributes"
+    columns:
+      - name: store_sk
+        tests:
+          - unique
+          - not_null
+      - name: operational_status
+
+  - name: dim_supplier
+    description: "Supplier master data with tier classification"
+    columns:
+      - name: supplier_sk
+        tests:
+          - unique
+          - not_null
+      - name: supplier_tier
+
+  - name: dim_date
+    description: "Comprehensive date dimension with fiscal, holiday, and week indicators"
+    columns:
+      - name: full_date
+        tests:
+          - unique
+          - not_null
+      - name: fiscal_quarter
+      - name: is_holiday
+
+  # Fact tables
+  - name: fct_sales
+    description: "Fact table for sales at order line grain"
+    columns:
+      - name: sale_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_sk
+        tests:
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_sk
+      - name: product_sk
+        tests:
+          - relationships:
+              to: ref('dim_product_scd')
+              field: product_id
+
+  - name: fct_shipments
+    description: "Fact table for shipments with SLA compliance metrics"
+    columns:
+      - name: shipment_sk
+        tests:
+          - unique
+          - not_null
+      - name: store_id
+        tests:
+          - relationships:
+              to: ref('dim_store')
+              field: store_sk
+
+  - name: fct_sensor_readings
+    description: "Sensor readings aggregated hourly with anomaly flags"
+    columns:
+      - name: sensor_sk
+        tests:
+          - unique
+          - not_null
+      - name: store_id
+        tests:
+          - relationships:
+              to: ref('dim_store')
+              field: store_sk
+
+  - name: fct_ingestion_audit
+    description: "ETL pipeline health metrics"
+    columns:
+      - name: audit_sk
+        tests:
+          - unique
+          - not_null
+      - name: rows_processed
+      - name: rows_rejected
