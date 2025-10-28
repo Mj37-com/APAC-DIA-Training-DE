@@ -19,13 +19,13 @@ import argparse
 import json
 import math
 import random
+import time
 from pathlib import Path
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
-
 # Recommended external libs:
-# pip install pandas numpy pyarrow openpyxl faker
+# pip install pandas numpy pyarrow openpyxl faker tqdm
 
 try:
     import pyarrow as pa  # used for parquet write fallback
@@ -38,6 +38,9 @@ try:
     FAKE = Faker()
 except Exception:
     FAKE = None
+
+# progress
+from tqdm import tqdm, trange
 
 pd.options.mode.chained_assignment = None
 
@@ -77,6 +80,7 @@ def write_jsonl_from_iter(path: Path, iter_of_json_strings):
 
 # 1) Customers ~80,000
 def generate_customers(out: Path, n=80000, seed=42):
+    t0 = time.perf_counter()
     rng = np.random.default_rng(seed)
     ids = np.arange(1, n+1, dtype=np.int64)
 
@@ -148,11 +152,13 @@ def generate_customers(out: Path, n=80000, seed=42):
     df.loc[dup_tgt, "natural_key"] = df.loc[dup_src, "natural_key"].values
 
     write_csv(df, out / "customers.csv")
-    print(f"Generated customers.csv → {len(df):,} rows")
+    elapsed = time.perf_counter() - t0
+    print(f"Generated customers.csv → {len(df):,} rows (elapsed={elapsed:.2f}s)")
     return df
 
 # 2) Products ~25,000
 def generate_products(out: Path, n=25000, seed=43):
+    t0 = time.perf_counter()
     rng = np.random.default_rng(seed)
     ids = np.arange(1, n+1, dtype=np.int64)
     skus = np.array([f"SKU-{s}" for s in rand_alphanum_vec(rng, 6, n)])
@@ -195,11 +201,13 @@ def generate_products(out: Path, n=25000, seed=43):
     })
 
     write_csv(df, out / "products.csv")
-    print(f"Generated products.csv → {len(df):,} rows")
+    elapsed = time.perf_counter() - t0
+    print(f"Generated products.csv → {len(df):,} rows (elapsed={elapsed:.2f}s)")
     return df
 
 # 3) Stores ~5,000
 def generate_stores(out: Path, n=5000, seed=44):
+    t0 = time.perf_counter()
     rng = np.random.default_rng(seed)
     ids = np.arange(1, n+1, dtype=np.int64)
     store_code = np.array([f"S{str(i).zfill(6)}" for i in ids])
@@ -242,11 +250,13 @@ def generate_stores(out: Path, n=5000, seed=44):
     })
 
     write_csv(df, out / "stores.csv")
-    print(f"Generated stores.csv → {len(df):,} rows")
+    elapsed = time.perf_counter() - t0
+    print(f"Generated stores.csv → {len(df):,} rows (elapsed={elapsed:.2f}s)")
     return df
 
 # 4) Suppliers ~8,000
 def generate_suppliers(out: Path, n=8000, seed=45):
+    t0 = time.perf_counter()
     rng = np.random.default_rng(seed)
     ids = np.arange(1, n+1, dtype=np.int64)
     supplier_code = np.array([f"SUP-{s}" for s in rand_alphanum_vec(rng, 6, n)])
@@ -265,16 +275,13 @@ def generate_suppliers(out: Path, n=8000, seed=45):
     })
 
     write_csv(df, out / "suppliers.csv")
-    print(f"Generated suppliers.csv → {len(df):,} rows")
+    elapsed = time.perf_counter() - t0
+    print(f"Generated suppliers.csv → {len(df):,} rows (elapsed={elapsed:.2f}s)")
     return df
 
 # 5 & 6) Orders header (>=1,000,000) & lines (~3-4M) partitioned
 def generate_orders_partitioned(out: Path, total_orders=1_000_000, avg_lines=3.5, seed=46, chunk_orders=100_000):
-    """
-    Stream/generate orders in chunks and write partitions:
-    - orders/order_dt=YYYY-MM-DD/orders_header_YYYY-MM-DD.csv
-    - orders/orders_lines/order_dt=YYYY-MM-DD/orders_lines_YYYY-MM-DD.csv
-    """
+    t0 = time.perf_counter()
     rng = np.random.default_rng(seed)
     orders_root = out / "orders"
     orders_lines_root = orders_root / "orders_lines"
@@ -295,126 +302,130 @@ def generate_orders_partitioned(out: Path, total_orders=1_000_000, avg_lines=3.5
 
     print(f"Generating {total_orders:,} orders in chunks of {chunk_orders:,}...")
 
-    while remaining > 0:
-        n = min(chunk_orders, remaining)
-        # timestamps hourly for the chunk
-        order_ts_chunk = pd.date_range(start_ts, periods=n, freq='h')
-        start_ts = order_ts_chunk[-1] + pd.Timedelta(hours=1)
+    with tqdm(total=total_orders, desc="Generating orders", unit="orders") as pbar:
+        while remaining > 0:
+            n = min(chunk_orders, remaining)
+            # timestamps hourly for the chunk
+            order_ts_chunk = pd.date_range(start_ts, periods=n, freq='h')
+            start_ts = order_ts_chunk[-1] + pd.Timedelta(hours=1)
 
-        order_ids = np.arange(next_order_id, next_order_id + n, dtype=np.int64)
-        next_order_id += n
-        remaining -= n
+            order_ids = np.arange(next_order_id, next_order_id + n, dtype=np.int64)
+            next_order_id += n
+            remaining -= n
 
-        customer_id = rng.choice(cust_ids, size=n)
-        store_id = rng.choice(store_ids, size=n)
+            customer_id = rng.choice(cust_ids, size=n)
+            store_id = rng.choice(store_ids, size=n)
 
-        # ~1% FK violations
-        n_fk = max(1, int(round(n * 0.01)))
-        if n_fk > 0:
-            fk_idx = rng.choice(n, size=n_fk, replace=False)
-            customer_id[fk_idx] = cust_ids.max() + rng.integers(1,1000, size=n_fk)
-            fk_idx2 = rng.choice(n, size=n_fk, replace=False)
-            store_id[fk_idx2] = store_ids.max() + rng.integers(1,500, size=n_fk)
+            # ~1% FK violations
+            n_fk = max(1, int(round(n * 0.01)))
+            if n_fk > 0:
+                fk_idx = rng.choice(n, size=n_fk, replace=False)
+                customer_id[fk_idx] = cust_ids.max() + rng.integers(1,1000, size=n_fk)
+                fk_idx2 = rng.choice(n, size=n_fk, replace=False)
+                store_id[fk_idx2] = store_ids.max() + rng.integers(1,500, size=n_fk)
 
-        channel = rng.choice(["web","pos"], size=n)
-        payment_method = rng.choice(["Cash","Card","E-Wallet"], size=n)
-        coupon_code = [None]*n
-        shipping_fee = np.round(rng.uniform(20.0,500.0,size=n),2)
-        currency = np.array(["PHP"]*n)
+            channel = rng.choice(["web","pos"], size=n)
+            payment_method = rng.choice(["Cash","Card","E-Wallet"], size=n)
+            coupon_code = [None]*n
+            shipping_fee = np.round(rng.uniform(20.0,500.0,size=n),2)
+            currency = np.array(["PHP"]*n)
 
-        header_df = pd.DataFrame({
-            "order_id": order_ids,
-            "order_ts": order_ts_chunk,
-            "order_dt": pd.to_datetime(order_ts_chunk).date,
-            "order_dt_local": pd.to_datetime(order_ts_chunk).date,
-            "customer_id": customer_id,
-            "store_id": store_id,
-            "channel": channel,
-            "payment_method": payment_method,
-            "coupon_code": coupon_code,
-            "shipping_fee": shipping_fee,
-            "currency": currency
-        })
+            header_df = pd.DataFrame({
+                "order_id": order_ids,
+                "order_ts": order_ts_chunk,
+                "order_dt": pd.to_datetime(order_ts_chunk).date,
+                "order_dt_local": pd.to_datetime(order_ts_chunk).date,
+                "customer_id": customer_id,
+                "store_id": store_id,
+                "channel": channel,
+                "payment_method": payment_method,
+                "coupon_code": coupon_code,
+                "shipping_fee": shipping_fee,
+                "currency": currency
+            })
 
-        # create lines for chunk
-        line_counts = rng.integers(1, 6, size=n)  # 1..5
-        total_lines = int(line_counts.sum())
-        order_ids_rep = np.repeat(header_df['order_id'].values, line_counts)
-        line_numbers = np.concatenate([np.arange(1, c+1) for c in line_counts])
+            # create lines for chunk
+            line_counts = rng.integers(1, 6, size=n)  # 1..5
+            total_lines = int(line_counts.sum())
+            order_ids_rep = np.repeat(header_df['order_id'].values, line_counts)
+            line_numbers = np.concatenate([np.arange(1, c+1) for c in line_counts])
 
-        product_id = rng.choice(product_ids, size=total_lines)
-        # 1% invalid product ids
-        n_invalid = max(1, int(round(total_lines * 0.01)))
-        if n_invalid > 0:
-            invalid_idx = rng.choice(total_lines, size=n_invalid, replace=False)
-            product_id[invalid_idx] = product_ids.max() + rng.integers(1, 100, size=n_invalid)
+            product_id = rng.choice(product_ids, size=total_lines)
+            # 1% invalid product ids
+            n_invalid = max(1, int(round(total_lines * 0.01)))
+            if n_invalid > 0:
+                invalid_idx = rng.choice(total_lines, size=n_invalid, replace=False)
+                product_id[invalid_idx] = product_ids.max() + rng.integers(1, 100, size=n_invalid)
 
-        qty = rng.integers(1, 10, size=total_lines)
-        # rare negative qty
-        n_neg = int(round(total_lines * 0.0005))
-        if n_neg > 0:
-            qty[rng.choice(total_lines, size=n_neg, replace=False)] = -1
+            qty = rng.integers(1, 10, size=total_lines)
+            # rare negative qty
+            n_neg = int(round(total_lines * 0.0005))
+            if n_neg > 0:
+                qty[rng.choice(total_lines, size=n_neg, replace=False)] = -1
 
-        unit_price = np.round(rng.uniform(1.0, 5000.0, size=total_lines), 4)
-        # rare zero prices
-        n_zero = int(round(total_lines * 0.0005))
-        if n_zero > 0:
-            unit_price[rng.choice(total_lines, size=n_zero, replace=False)] = 0.0
+            unit_price = np.round(rng.uniform(1.0, 5000.0, size=total_lines), 4)
+            # rare zero prices
+            n_zero = int(round(total_lines * 0.0005))
+            if n_zero > 0:
+                unit_price[rng.choice(total_lines, size=n_zero, replace=False)] = 0.0
 
-        line_discount_pct = np.round(rng.uniform(0, 0.5, size=total_lines), 4)
-        tax_pct = np.round(rng.uniform(0, 0.2, size=total_lines), 4)
+            line_discount_pct = np.round(rng.uniform(0, 0.5, size=total_lines), 4)
+            tax_pct = np.round(rng.uniform(0, 0.2, size=total_lines), 4)
 
-        lines_df = pd.DataFrame({
-            "order_id": order_ids_rep,
-            "line_number": line_numbers,
-            "product_id": product_id,
-            "qty": qty,
-            "unit_price": unit_price,
-            "line_discount_pct": line_discount_pct,
-            "tax_pct": tax_pct
-        })
+            lines_df = pd.DataFrame({
+                "order_id": order_ids_rep,
+                "line_number": line_numbers,
+                "product_id": product_id,
+                "qty": qty,
+                "unit_price": unit_price,
+                "line_discount_pct": line_discount_pct,
+                "tax_pct": tax_pct
+            })
 
-        # duplicate order_ids across files 0.05%: make tiny duplicate set
-        n_dup = max(1, int(round(n * 0.0005)))
-        if n_dup > 0:
-            dup_oids = rng.choice(order_ids, size=n_dup, replace=False)
-            dup_rows = header_df[header_df['order_id'].isin(dup_oids)].copy()
-            dup_rows['order_dt'] = (pd.to_datetime(dup_rows['order_dt']) + pd.Timedelta(days=1)).dt.date
-            header_df = pd.concat([header_df, dup_rows], ignore_index=True).sort_values('order_id').reset_index(drop=True)
-            dup_lines = lines_df[lines_df['order_id'].isin(dup_oids)].copy()
-            lines_df = pd.concat([lines_df, dup_lines], ignore_index=True)
+            # duplicate order_ids across files 0.05%: make tiny duplicate set
+            n_dup = max(1, int(round(n * 0.0005)))
+            if n_dup > 0:
+                dup_oids = rng.choice(order_ids, size=n_dup, replace=False)
+                dup_rows = header_df[header_df['order_id'].isin(dup_oids)].copy()
+                dup_rows['order_dt'] = (pd.to_datetime(dup_rows['order_dt']) + pd.Timedelta(days=1)).dt.date
+                header_df = pd.concat([header_df, dup_rows], ignore_index=True).sort_values('order_id').reset_index(drop=True)
+                dup_lines = lines_df[lines_df['order_id'].isin(dup_oids)].copy()
+                lines_df = pd.concat([lines_df, dup_lines], ignore_index=True)
 
-        # write header and lines partitioned by order_dt
-        for d, grp in header_df.groupby('order_dt'):
-            dstr = pd.to_datetime(d).strftime("%Y-%m-%d")
-            hdr_part_dir = orders_root / f"order_dt={dstr}"
-            lines_part_dir = orders_lines_root / f"order_dt={dstr}"
-            ensure_dir(hdr_part_dir)
-            ensure_dir(lines_part_dir)
-            hdr = grp.copy()
-            hdr.to_csv(hdr_part_dir / f"orders_header_{dstr}.csv", index=False)
-            ids_in_hdr = hdr['order_id'].unique()
-            lines_match = lines_df[lines_df['order_id'].isin(ids_in_hdr)]
-            lines_match.to_csv(lines_part_dir / f"orders_lines_{dstr}.csv", index=False)
+            # write header and lines partitioned by order_dt
+            for d, grp in header_df.groupby('order_dt'):
+                dstr = pd.to_datetime(d).strftime("%Y-%m-%d")
+                hdr_part_dir = orders_root / f"order_dt={dstr}"
+                lines_part_dir = orders_lines_root / f"order_dt={dstr}"
+                ensure_dir(hdr_part_dir)
+                ensure_dir(lines_part_dir)
+                hdr = grp.copy()
+                hdr.to_csv(hdr_part_dir / f"orders_header_{dstr}.csv", index=False)
+                ids_in_hdr = hdr['order_id'].unique()
+                lines_match = lines_df[lines_df['order_id'].isin(ids_in_hdr)]
+                lines_match.to_csv(lines_part_dir / f"orders_lines_{dstr}.csv", index=False)
 
-        print(f"Chunk written: headers={len(header_df):,}, lines={len(lines_df):,}")
+            pbar.update(n)
+            print(f"Chunk written: headers={len(header_df):,}, lines={len(lines_df):,}")
 
-    print(f"Completed orders: target headers={total_orders:,} (partitioned under {orders_root})")
+    elapsed = time.perf_counter() - t0
+    print(f"Completed orders: target headers={total_orders:,} (partitioned under {orders_root}) (elapsed={elapsed:.2f}s)")
     return True
 
 # 7) Events JSONL partitioned (~2,000,000)
 def generate_events(out: Path, total_events=2_000_000, seed=47, days=30):
+    t0 = time.perf_counter()
     rng = np.random.default_rng(seed)
     out_events = out / "events"
     ensure_dir(out_events)
     per_day = total_events // days
     event_types = ["click","view","purchase","add_to_cart","checkout"]
 
-    for day in range(days):
+    for day in trange(days, desc="Generating events (days)", unit="day"):
         date = (pd.Timestamp("2024-01-01") + pd.Timedelta(days=day)).date()
         file_path = out_events / f"events_{date.strftime('%Y-%m-%d')}.jsonl"
         with open(file_path, "w", encoding="utf-8") as fh:
-            for i in range(per_day):
+            for i in tqdm(range(per_day), desc=f"Day {day+1}/{days}", leave=False, unit="event"):
                 event_id = f"E{day}_{i}_{rand_alphanum(rng, 6)}"
                 event_ts = (pd.Timestamp("2024-01-01") + pd.Timedelta(days=day) +
                             pd.to_timedelta(int(rng.integers(0, 86400)), 's')).isoformat()
@@ -439,7 +450,9 @@ def generate_events(out: Path, total_events=2_000_000, seed=47, days=30):
 
                 fh.write(s + "\n")
         print(f"Wrote events partition {file_path} ({per_day:,} lines)")
-    print(f"Completed events generation (~{per_day*days:,} lines)")
+
+    elapsed = time.perf_counter() - t0
+    print(f"Completed events generation (~{per_day*days:,} lines) (elapsed={elapsed:.2f}s)")
 
 # 8) Sensors CSV partitioned by store_id/month (target 5-10M)
 def generate_sensors_partitioned(out: Path, stores_count=5000, months=12, rows_per_store_month=100, seed=48):
@@ -447,6 +460,7 @@ def generate_sensors_partitioned(out: Path, stores_count=5000, months=12, rows_p
     Default produces: stores_count * months * rows_per_store_month rows (e.g. 5000 * 12 * 100 = 6,000,000)
     Partition path: sensors/store_id={id}/month=YYYY-MM/sensors_{id}_{YYYY-MM}.csv
     """
+    t0 = time.perf_counter()
     rng = np.random.default_rng(seed)
     sensors_root = out / "sensors"
     ensure_dir(sensors_root)
@@ -455,8 +469,8 @@ def generate_sensors_partitioned(out: Path, stores_count=5000, months=12, rows_p
     total = stores_count * months * rows_per_store_month
     print(f"Generating sensors ~{total:,} rows (stores={stores_count}, months={months}, rows_per_store_month={rows_per_store_month})")
 
-    for store in range(1, stores_count+1):
-        for m in range(months):
+    for store in tqdm(range(1, stores_count+1), desc="Generating sensors (stores)", unit="store"):
+        for m in trange(months, desc=f"store {store} months", leave=False, unit="month"):
             month_dt = start + pd.DateOffset(months=m)
             p = sensors_root / f"store_id={store}" / f"month={month_dt.strftime('%Y-%m')}"
             ensure_dir(p)
@@ -480,28 +494,33 @@ def generate_sensors_partitioned(out: Path, stores_count=5000, months=12, rows_p
             df.to_csv(p / f"sensors_{store}_{month_dt.strftime('%Y-%m')}.csv", index=False)
         if store % 500 == 0:
             print(f"Generated sensors for store {store}/{stores_count}")
-    print("Completed sensors generation.")
+
+    elapsed = time.perf_counter() - t0
+    print(f"Completed sensors generation. (elapsed={elapsed:.2f}s)")
 
 # 9) Exchange rates XLSX (~1,100 rows for 3 years daily * currencies)
 def generate_exchange_rates_xlsx(out: Path, years=3, seed=49):
+    t0 = time.perf_counter()
     rng = np.random.default_rng(seed)
     start = pd.Timestamp("2023-01-01")
     days = 365 * years + (years // 4)  # approximate include leap-ish
     dates = pd.date_range(start, periods=days, freq='D')
     currencies = ["USD","EUR","JPY","SGD","GBP"]
     rows = []
-    for d in dates:
+    for d in tqdm(dates, desc="Generating exchange rate days", unit="day"):
         for cur in currencies:
             rows.append({"date": d.date(), "currency": cur, "rate_to_aud": round(float(rng.uniform(0.1, 2.5)), 8)})
     df = pd.DataFrame(rows)
     # write xlsx
     out_file = out / "exchange_rates.xlsx"
     df.to_excel(out_file, index=False, engine="openpyxl")
-    print(f"Generated exchange_rates.xlsx → {len(df):,} rows")
+    elapsed = time.perf_counter() - t0
+    print(f"Generated exchange_rates.xlsx → {len(df):,} rows (elapsed={elapsed:.2f}s)")
     return df
 
 # 10) Shipments Parquet (~1,000,000)
 def generate_shipments_parquet(out: Path, n=1_000_000, seed=50):
+    t0 = time.perf_counter()
     rng = np.random.default_rng(seed)
     shipment_id = np.arange(1, n+1, dtype=np.int64)
     order_id = rng.integers(1, 1_000_000, size=n)
@@ -526,11 +545,13 @@ def generate_shipments_parquet(out: Path, n=1_000_000, seed=50):
 
     out_parquet = out / "shipments.parquet"
     df.to_parquet(out_parquet, index=False)
-    print(f"Generated shipments.parquet → {len(df):,} rows")
+    elapsed = time.perf_counter() - t0
+    print(f"Generated shipments.parquet → {len(df):,} rows (elapsed={elapsed:.2f}s)")
     return df
 
 # 11) Returns (v1 + v2 + upsert/delete)
 def generate_returns(out: Path, n=100000, seed=51):
+    t0 = time.perf_counter()
     rng = np.random.default_rng(seed)
     ids = np.arange(1, n+1, dtype=np.int64)
     order_id = rng.integers(1, 1_000_000, size=n)
@@ -559,7 +580,8 @@ def generate_returns(out: Path, n=100000, seed=51):
     delete_ids = rng.choice(df_v2['return_id'], size=delete_n, replace=False)
     pd.DataFrame({"return_id": delete_ids}).to_csv(out / "returns_delete.csv", index=False)
 
-    print(f"Generated returns_v1/v2 parquets → {n:,} rows each, plus upsert/delete CSVs")
+    elapsed = time.perf_counter() - t0
+    print(f"Generated returns_v1/v2 parquets → {n:,} rows each, plus upsert/delete CSVs (elapsed={elapsed:.2f}s)")
     return df_v1, df_v2
 
 # --------------------
