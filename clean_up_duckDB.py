@@ -3,14 +3,24 @@ import duckdb
 db_path = "duckdb/warehouse.duckdb"
 con = duckdb.connect(db_path)
 
-# Get all tables
-tables = con.execute("SHOW TABLES").fetchall()
+# ✅ Get all schemas (works even if SHOW SCHEMAS not supported)
+schemas = [
+    s[0]
+    for s in con.execute(
+        "SELECT schema_name FROM information_schema.schemata"
+    ).fetchall()
+    if not s[0].startswith('information_schema') and not s[0].startswith('pg_catalog')
+]
 
-print(f"🧹 Dropping {len(tables)} tables...")
+for schema in schemas:
+    tables = con.execute(f"SELECT table_name FROM information_schema.tables WHERE table_schema = '{schema}'").fetchall()
+    if not tables:
+        continue
 
-for (t,) in tables:
-    con.execute(f"DROP TABLE IF EXISTS {t}")
-    print(f"✅ Dropped: {t}")
+    print(f"\n🧹 Dropping {len(tables)} tables in schema '{schema}'...")
+    for (t,) in tables:
+        con.execute(f"DROP TABLE IF EXISTS {schema}.{t}")
+        print(f"✅ Dropped: {schema}.{t}")
 
-print("🎯 All tables dropped successfully.")
+print("\n🎯 All tables in all schemas dropped successfully.")
 con.close()
