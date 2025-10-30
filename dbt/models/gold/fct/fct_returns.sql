@@ -6,6 +6,5 @@ SELECT
     r.product_id,
     r.qty AS return_qty,
     r.return_ts,
-    r.reason,
-    r.return_reason_code
+    r.reason
 FROM {{ ref('stg_returns') }} r
