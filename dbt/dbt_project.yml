@@ -1,4 +1,4 @@
-name: 'local_de_assessment'
+name: 'apac_dia_training_de'
 version: '1.0.0'
 config-version: 2
 
@@ -14,7 +14,7 @@ target-path: 'target'
 clean-targets: ['target']
 
 models:
-  local_de_assessment:
+  apac_dia_training_de:
     staging:
       +materialized: view
       +schema: stg
