@@ -16,6 +16,7 @@ main_gold,dim_products_scd,25000,15
 main_gold,dim_stores,5000,13
 main_gold,dim_suppliers,8000,8
 main_gold,fct_sales,1000427,21
+main_gold,fct_sensor_readings,5999694,11
 main_gold,fct_shipments,1000000,7
 main_silver,fct_orders,1000427,8
 main_silver,stg_products_snapshot,25000,14
