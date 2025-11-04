@@ -10,9 +10,8 @@ main,bronze_sensors,6000000,7
 main,bronze_shipments,1000000,6
 main,bronze_stores,5000,10
 main,bronze_suppliers,8000,6
-main_gold,fct_returns,100000,6
+main_gold,dim_customers,80000,21
 main_gold,fct_sales,1000427,21
-main_gold,fct_shipments,950157,8
 main_silver,fct_orders,1000427,8
 main_stg,stg_customers,80000,18
 main_stg,stg_events,1999980,2

@@ -5,7 +5,7 @@ con = duckdb.connect(db_path)
 
 # Specify schema and table to drop
 schema = "main_gold"
-table_to_drop = "dim_customer"
+table_to_drop = "fct_shipments"
 
 # Drop the table if it exists
 con.execute(f"DROP TABLE IF EXISTS {schema}.{table_to_drop}")
