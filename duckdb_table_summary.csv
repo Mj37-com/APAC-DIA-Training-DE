@@ -11,8 +11,10 @@ main,bronze_shipments,1000000,6
 main,bronze_stores,5000,10
 main,bronze_suppliers,8000,6
 main_gold,dim_customers,80000,21
+main_gold,dim_products_scd,25000,15
 main_gold,fct_sales,1000427,21
 main_silver,fct_orders,1000427,8
+main_silver,stg_products_snapshot,25000,14
 main_stg,stg_customers,80000,18
 main_stg,stg_events,1999980,2
 main_stg,stg_exchange_rates,5475,3
